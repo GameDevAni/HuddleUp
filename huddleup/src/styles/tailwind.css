@@ -2,14 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Optional: Custom dark theme tweaks */
+/* Any custom global styles you need: */
 html {
   @apply bg-gray-900 text-white;
 }
 
 input,
 button,
-textarea,
-select {
+select,
+textarea {
   @apply focus:outline-none;
 }
