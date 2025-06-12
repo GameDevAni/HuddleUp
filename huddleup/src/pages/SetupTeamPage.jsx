@@ -6,6 +6,16 @@ import pb from '../services/pocketbaseService';
 const sports = ['Football', 'Basketball', 'Cricket', 'Tennis', 'Hockey'];
 const ageGroups = ['Under-9', 'Under-11', 'Under-13', 'Under-15', 'Under-17', 'Under-19', 'Open'];
 
+// simple 6-char alphanumeric code generator
+function generateTeamCode(length = 6) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < length; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
 export default function SetupTeamPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -16,6 +26,8 @@ export default function SetupTeamPage() {
   const [error, setError] = useState(null);
 
   const handleCreateTeam = async (e) => {
+    const teamCode = generateTeamCode();
+    console.log('🆔 Generated team code:', teamCode);
     e.preventDefault();
     try {
       await pb.collection('teams').create({
@@ -24,12 +36,21 @@ export default function SetupTeamPage() {
         age_group: ageGroup,
         coach: user.id,
         players: [], // start empty
+        team_code: teamCode,
       });
       navigate('/dashboard/coach');
     } catch (err) {
-      console.error(err);
-      setError('Failed to create team.');
+      const resp = err.response?.data;
+      console.error('Create team error data:', resp);
+      if (resp?.data) {
+        // e.g. { age_group: { message: "...", ... }, team_code: { message: "...", ... } }
+        Object.entries(resp.data).forEach(([field, info]) => {
+          console.error(`• ${field}:`, info.message || info);
+        });
+      }
+      setError('Failed to create team. Check console for details.');
     }
+
   };
 
   return (

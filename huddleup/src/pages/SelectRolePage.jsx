@@ -7,26 +7,30 @@ export default function SelectRolePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // Redirect if already has a role
-    if (user?.role === 'coach') navigate('/dashboard/coach');
-    else if (user?.role === 'player') navigate('/dashboard/player');
-  }, [user, navigate]);
+
 
   const handleRoleSelect = async (role) => {
+    console.log('select-role: user.id=', user?.id, ' user.role=', user?.role);
+
+    if (!user || !user.id) {
+    console.error('No user loaded, redirecting to login.');
+    return navigate('/login', { replace: true });
+  }
+
     try {
       // ✅ Update role in Pocketbase
       await pb.collection('users').update(user.id, { role });
+      
 
       // ✅ Refresh local user object
       await pb.collection('users').authRefresh(); // or fetch user again
-      const updatedUser = pb.authStore.model;
+      const updatedUser = pb.authStore.record;
 
       // ✅ Redirect based on updated role
       if (updatedUser.role === 'coach') {
-        navigate('/setup-team');
+        navigate('/setup-team', { replace: true });
       } else {
-        navigate('/setup-player');
+        navigate('/setup-player', { replace: true });
       }
     } catch (err) {
       console.error('Failed to update role:', err);

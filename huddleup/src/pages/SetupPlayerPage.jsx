@@ -1,3 +1,5 @@
+// src/pages/SetupPlayerPage.jsx
+
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -8,34 +10,36 @@ export default function SetupPlayerPage() {
   const navigate = useNavigate();
 
   const [phone, setPhone] = useState('');
-  const [position, setPosition] = useState('');     // now free text
+  const [position, setPosition] = useState('');    // free-text input
   const [teamCode, setTeamCode] = useState('');
   const [error, setError] = useState(null);
 
   const handleJoinTeam = async (e) => {
     e.preventDefault();
+    setError(null);
+
     try {
-      // 1. Fetch team by code
+      // 1. Look up the team by its code
       const team = await pb
         .collection('teams')
         .getFirstListItem(`team_code="${teamCode}"`);
 
-      // 2. Update user with phone & position (text)
+      // 2. Update the user profile
       await pb.collection('users').update(user.id, {
         phone,
         playing_position: position,
       });
 
-      // 3. Add user to team’s players array
+      // 3. Add this user to the team's players array
       const updatedPlayers = [...(team.players || []), user.id];
       await pb.collection('teams').update(team.id, {
         players: updatedPlayers,
       });
 
-      // 4. Go to player dashboard
+      // 4. Redirect to player dashboard
       navigate('/dashboard/player');
     } catch (err) {
-      console.error(err);
+      console.error('Join team failed:', err.response?.data || err);
       setError('Could not join with that team code.');
     }
   };
@@ -49,32 +53,41 @@ export default function SetupPlayerPage() {
         <h2 className="text-2xl font-bold mb-4">Join Your Team</h2>
         {error && <p className="text-red-500 mb-2">{error}</p>}
 
-        <input
-          type="tel"
-          placeholder="Phone Number"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          className="w-full p-2 rounded bg-gray-700 text-white mb-3"
-          required
-        />
+        <label className="block mb-2">
+          <span className="text-sm">Phone Number</span>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="e.g. +1 (555) 123-4567"
+            className="w-full p-2 rounded bg-gray-700 text-white mt-1"
+            required
+          />
+        </label>
 
-        <input
-          type="text"
-          placeholder="Playing Position (e.g., Striker, Point Guard)"
-          value={position}
-          onChange={(e) => setPosition(e.target.value)}
-          className="w-full p-2 rounded bg-gray-700 text-white mb-3"
-          required
-        />
+        <label className="block mb-2">
+          <span className="text-sm">Playing Position</span>
+          <input
+            type="text"
+            value={position}
+            onChange={(e) => setPosition(e.target.value)}
+            placeholder="e.g. Striker, Point Guard, Setter"
+            className="w-full p-2 rounded bg-gray-700 text-white mt-1"
+            required
+          />
+        </label>
 
-        <input
-          type="text"
-          placeholder="Team Code"
-          value={teamCode}
-          onChange={(e) => setTeamCode(e.target.value)}
-          className="w-full p-2 rounded bg-gray-700 text-white mb-4"
-          required
-        />
+        <label className="block mb-4">
+          <span className="text-sm">Team Code</span>
+          <input
+            type="text"
+            value={teamCode}
+            onChange={(e) => setTeamCode(e.target.value)}
+            placeholder="Enter the code from your coach"
+            className="w-full p-2 rounded bg-gray-700 text-white mt-1"
+            required
+          />
+        </label>
 
         <button
           type="submit"
