@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Optional: Custom dark theme tweaks */
+html {
+  @apply bg-gray-900 text-white;
+}
+
+input,
+button,
+textarea,
+select {
+  @apply focus:outline-none;
+}
