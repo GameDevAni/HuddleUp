@@ -1,54 +1,64 @@
 // src/pages/PlayerTeamPage.jsx
-
 import { useState, useEffect } from 'react';
 import { useAuth }            from '../context/AuthContext';
-import PlayerLayout from '../components/PlayerLayout';
+import PlayerLayout           from '../components/PlayerLayout';
 import pb                     from '../services/pocketbaseService';
-import { Mail }               from 'lucide-react';
 
 export default function PlayerTeamPage() {
-  const { user }    = useAuth();
-  const [team,      setTeam]    = useState(null);
-  const [players,   setPlayers] = useState([]);
-  const [coach,     setCoach]   = useState(null);
-  const [error,     setError]   = useState(null);
+  const { user } = useAuth();
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState('');
 
-  // load initial roster + coach
   useEffect(() => {
-    async function loadRoster() {
+    if (!user?.team) {
+      setError("You haven't joined a team yet.");
+      setLoading(false);
+      return;
+    }
+
+    let subscription;
+
+    async function loadMembers() {
+      setLoading(true);
       try {
-        const me = await pb
+        const list = await pb
           .collection('users')
-          .getOne(user.id, {
-            expand: 'team,team.players,team.coach'
+          .getFullList({
+            filter: `team="${user.team}"`,
+            sort:   'name',
           });
-        const t = me.expand.team;
-        setTeam(t);
-        setPlayers(t?.expand.players || []);
-        setCoach(t?.expand.coach || null);
+        setMembers(list);
+        setError('');
       } catch (err) {
-        console.error('Failed to load team:', err);
-        setError('Could not load your team.');
+        console.error('PlayerTeamPage.loadMembers error', err);
+        setError('Could not load your team members.');
+      } finally {
+        setLoading(false);
       }
     }
-    loadRoster();
-  }, [user.id]);
 
-  // subscribe to live roster updates
-  useEffect(() => {
-    if (!team?.id) return;
-    const sub = pb
-      .collection('teams')
-      .subscribe(`id = "${team.id}"`, e => {
-        if (e.action === 'update' && e.record.expand?.players) {
-          setPlayers(e.record.expand.players);
-        }
-      });
+    loadMembers();
+
+    subscription = pb
+      .collection('users')
+      .subscribe(`team="${user.team}"`, loadMembers);
+
     return () => {
-      if (typeof sub === 'function') sub();
-      else if (sub?.unsubscribe) sub.unsubscribe();
+      // guard against undefined
+      if (subscription && typeof subscription.unsubscribe === 'function') {
+        subscription.unsubscribe();
+      }
     };
-  }, [team]);
+  }, [user.team]);
+
+  if (loading) {
+    return (
+      <PlayerLayout>
+        <p className="text-gray-400">Loading your team…</p>
+      </PlayerLayout>
+    );
+  }
 
   if (error) {
     return (
@@ -57,70 +67,65 @@ export default function PlayerTeamPage() {
       </PlayerLayout>
     );
   }
-  if (!team) {
-    return (
-      <PlayerLayout>
-        <p className="text-gray-400">Loading your team…</p>
-      </PlayerLayout>
-    );
-  }
+
+  // split into coach vs. players
+  const coach   = members.find(m => m.role === 'coach');
+  const players = members.filter(m => m.role === 'player');
 
   return (
     <PlayerLayout>
-      <h1 className="text-3xl font-bold text-white mb-6">Team Roster</h1>
+      <h1 className="text-3xl font-bold mb-6 text-white">Your Team</h1>
 
-      {/* Coach Contact */}
       {coach && (
-        <div className="mb-6 bg-gray-800 p-4 rounded-lg border border-gray-700 flex items-center justify-between">
-          <div>
-            <p className="text-gray-300">Coach</p>
-            <h2 className="text-xl text-white font-semibold">{coach.name}</h2>
+        <div className="mb-6 bg-gray-800 p-6 rounded-lg border border-gray-700 flex flex-col md:flex-row justify-between">
+          <div className="mb-4 md:mb-0">
+            <h2 className="text-2xl font-semibold text-white">
+              {coach.team_name || 'Team'}
+            </h2>
+            <p className="text-gray-300">Coach:</p>
+            <p className="text-white font-medium">{coach.name}</p>
             <p className="text-gray-400">{coach.email}</p>
           </div>
-          <button
-            onClick={() => window.location = `mailto:${coach.email}`}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg"
-          >
-            <Mail className="w-4 h-4 inline-block mr-1" />
-            Email
-          </button>
+          <div className="text-right">
+            <p className="text-gray-300 text-sm">Team Code</p>
+            <code className="block bg-gray-900 px-3 py-2 rounded mt-1 font-mono text-lg text-purple-400">
+              {user.team}
+            </code>
+          </div>
         </div>
       )}
 
-      {/* Player Table */}
-      <div className="bg-gray-800 rounded-lg overflow-hidden">
+      <div className="bg-gray-800 rounded-lg overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-700">
           <thead className="bg-gray-700">
             <tr>
               <th className="px-4 py-2 text-left text-gray-300">Name</th>
               <th className="px-4 py-2 text-left text-gray-300">Position</th>
               <th className="px-4 py-2 text-left text-gray-300">Status</th>
+              <th className="px-4 py-2 text-left text-gray-300">Contact</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700">
             {players.map(p => (
               <tr key={p.id}>
                 <td className="px-4 py-3 text-white">{p.name}</td>
-                <td className="px-4 py-3 text-gray-200">{p.playing_position}</td>
+                <td className="px-4 py-3 text-gray-200">{p.playing_position || '-'}</td>
                 <td className="px-4 py-3">
-                  <span
-                    className={
-                      p.status === 'injured'
-                        ? 'text-red-400'
-                        : p.status === 'unavailable'
-                        ? 'text-yellow-400'
-                        : 'text-green-400'
-                    }
-                  >
-                    {p.status || 'available'}
+                  <span className={
+                    p.status === 'injured'     ? 'text-red-400'   :
+                    p.status === 'unavailable' ? 'text-yellow-400':
+                                                 'text-green-400'
+                  }>
+                    {p.status || 'active'}
                   </span>
                 </td>
+                <td className="px-4 py-3 text-gray-200">{p.phone || p.email || '-'}</td>
               </tr>
             ))}
             {players.length === 0 && (
               <tr>
-                <td colSpan={3} className="px-4 py-3 text-gray-400 text-center">
-                  No teammates yet.
+                <td colSpan={4} className="px-4 py-3 text-gray-400 text-center">
+                  No teammates have joined yet.
                 </td>
               </tr>
             )}

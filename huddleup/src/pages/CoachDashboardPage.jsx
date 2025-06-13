@@ -1,9 +1,9 @@
 // src/pages/CoachDashboardPage.jsx
 import { useEffect, useState } from 'react';
-import { useAuth }            from '../context/AuthContext';
-import pb                     from '../services/pocketbaseService';
-import { useNavigate }        from 'react-router-dom';
-import Layout                 from '../components/Layout';
+import { useAuth } from '../context/AuthContext';
+import pb from '../services/pocketbaseService';
+import { useNavigate } from 'react-router-dom';
+import Layout from '../components/Layout';
 import {
   Users,
   Calendar,
@@ -18,16 +18,16 @@ export default function CoachDashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [team,       setTeam]           = useState(null);
-  const [players,    setPlayers]        = useState([]);
-  const [stats,      setStats]          = useState({
-    totalPlayers:    0,
+  const [team, setTeam] = useState(null);
+  const [players, setPlayers] = useState([]);
+  const [stats, setStats] = useState({
+    totalPlayers: 0,
     upcomingMatches: 0,
-    newMessages:     0,
-    notifications:   0,
+    newMessages: 0,
+    notifications: 0,
   });
   const [upcomingMatches, setUpcomingMatches] = useState([]);
-  const [copied,     setCopied]         = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // 1) Load team record & initial upcoming matches
   useEffect(() => {
@@ -41,16 +41,39 @@ export default function CoachDashboardPage() {
 
         // b) fetch your next 3 upcoming matches
         const now = new Date().toISOString();
-        const matches = await pb
+        let matches = await pb
           .collection('matches')
           .getFullList({
             filter: `team="${t.id}" && date_time >= "${now}"`,
-            sort:   'date_time',
-            limit:  3,
+            sort: 'date_time',
+            limit: 3,
           });
+
+        // 4) for each match, fetch the count of confirmed RSVPs
+        matches = await Promise.all(matches.map(async (m) => {
+          // fetch every RSVP for this match
+          const responses = await pb
+            .collection('match_responses')
+            .getFullList({
+              filter: `match="${m.id}"`,
+              sort: 'created',     // optional
+            });
+
+          // DEBUG: inspect what you actually got
+          console.log('match_responses for', m.id, responses);
+
+          // manually count the ones whose status equals your PB option value
+          const confirmedCount = responses.filter(r => r.status === 'Confirmed').length;
+
+          return {
+            ...m,
+            confirmedCount,
+          };
+        }));
+
         setUpcomingMatches(matches);
 
-        // c) update the stat for upcoming matches
+        setUpcomingMatches(matches);
         setStats(s => ({ ...s, upcomingMatches: matches.length }));
       } catch (err) {
         console.error('Dashboard load error:', err);
@@ -69,7 +92,7 @@ export default function CoachDashboardPage() {
         .collection('users')
         .getFullList({
           filter: `team = "${team.id}"`,
-          sort:   'name',
+          sort: 'name',
         });
       // exclude the coach themselves:
       const roster = list.filter(u => u.id !== user.id);
@@ -197,6 +220,9 @@ export default function CoachDashboardPage() {
                 <p className="flex items-center text-gray-400 text-sm space-x-1">
                   <Calendar className="w-4 h-4" />
                   <span>{m.location}</span>
+                </p>
+                <p className="text-gray-400 text-sm">
+                  ✅ Confirmed: <span className="text-white">{m.confirmedCount}</span>
                 </p>
               </div>
             ))

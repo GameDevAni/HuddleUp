@@ -107,7 +107,7 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-transform hover:scale-105"
+              className="w-full py-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold transition-transform hover:scale-105"
             >
               {loading ? 'Creating…' : 'Sign Up'}
             </button>
@@ -115,7 +115,7 @@ export default function SignupPage() {
 
           <p className="text-gray-400 text-sm text-center mt-6">
             Already have an account?{' '}
-            <Link to="/login" className="text-blue-400 hover:underline">
+            <Link to="/login" className="text-purple-400 hover:underline">
               Log in
             </Link>
           </p>
