@@ -1,56 +1,39 @@
-// src/pages/SelectRolePage.jsx
-
-import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import pb from '../services/pocketbaseService';
+import { useEffect } from 'react';
 
 export default function SelectRolePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // On mount (or when user changes), redirect if role is set
   useEffect(() => {
-    if (!user) return;       // auth still loading
-    if (!user.role) return;  // no role yet — show buttons
-
-    if (user.role === 'coach') {
-      // coach → either setup or dashboard
-      pb.collection('teams')
-        .getFirstListItem(`coach="${user.id}"`)
-        .then(() => navigate('/dashboard/coach', { replace: true }))
-        .catch(() => navigate('/setup-team',    { replace: true }));
-    }
-
-    if (user.role === 'player') {
-      // player → check if already on a team
-      pb.collection('teams')
-        .getFirstListItem(`players ~ "${user.id}"`)
-        .then(() => navigate('/dashboard/player', { replace: true }))
-        .catch((err) => {
-          if (err.status === 404) {
-            // not on any team yet
-            navigate('/setup-player', { replace: true });
-          } else {
-            console.error('Error checking player team:', err);
-          }
-        });
-    }
+    // Redirect if already has a role
+    if (user?.role === 'coach') navigate('/dashboard/coach');
+    else if (user?.role === 'player') navigate('/dashboard/player');
   }, [user, navigate]);
-
-  // Only show buttons if the user has no role yet
-  if (user?.role) return null;
 
   const handleRoleSelect = async (role) => {
     try {
-      await pb
-        .collection('users')
-        .update(user.id, { role });
-      // once role is set, the above useEffect will run and redirect accordingly
+      // ✅ Update role in Pocketbase
+      await pb.collection('users').update(user.id, { role });
+
+      // ✅ Refresh local user object
+      await pb.collection('users').authRefresh(); // or fetch user again
+      const updatedUser = pb.authStore.model;
+
+      // ✅ Redirect based on updated role
+      if (updatedUser.role === 'coach') {
+        navigate('/setup-team');
+      } else {
+        navigate('/setup-player');
+      }
     } catch (err) {
-      console.error('Failed to set role:', err);
+      console.error('Failed to update role:', err);
     }
   };
+
+
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white px-4">

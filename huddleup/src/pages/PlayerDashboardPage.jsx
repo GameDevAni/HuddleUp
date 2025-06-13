@@ -1,54 +1,39 @@
-// src/pages/PlayerDashboardPage.jsx
-
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useEffect, useState } from 'react';
+import PlayerLayout from '../components/PlayerLayout';
 import pb from '../services/pocketbaseService';
 
 export default function PlayerDashboardPage() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [team, setTeam] = useState(null);
 
   useEffect(() => {
-    // Fetch the team where players includes this user
-    pb.collection('teams')
-      .getFirstListItem(`players ~ "${user.id}"`)
-      .then(setTeam)
-      .catch((err) => {
-        if (err.status !== 404) console.error('Error fetching player team:', err);
-      });
+    async function fetchUser() {
+      try {
+        // re-load the user with `team` expanded
+        const me = await pb.collection('users').getOne(user.id, {
+          expand: 'team',
+        });
+        setTeam(me.expand?.team || null);
+      } catch (err) {
+        console.error('Error fetching user/team', err);
+      }
+    }
+    fetchUser();
   }, [user.id]);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Welcome {user.name}</h1>
-        <button onClick={logout} className="text-red-400 hover:underline">
-          Logout
-        </button>
-      </div>
+    <PlayerLayout>
+      <h1 className="text-3xl font-bold text-white mb-6">Player Dashboard</h1>
 
       {team ? (
-        <div className="mb-6 bg-gray-800 p-4 rounded-lg shadow-lg">
-          <h2 className="text-xl font-semibold">You’ve Joined:</h2>
-          <p className="mt-2 text-2xl font-bold">{team.team_name}</p>
+        <div className="bg-gray-800 p-6 rounded-lg border border-gray-700">
+          <p className="text-gray-400">You’ve joined:</p>
+          <h2 className="text-2xl font-semibold text-white">{team.team_name}</h2>
         </div>
       ) : (
-        <p className="text-gray-400 mb-6">
-          You haven't joined a team yet. Please use your team code.
-        </p>
+        <p className="text-gray-400">You haven’t joined a team yet.</p>
       )}
-
-      {/* TODO: Replace these cards with your real modules */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-gray-800 p-4 rounded-lg shadow-lg">
-          <h2 className="text-xl font-semibold mb-2">Upcoming Matches</h2>
-          <p className="text-sm text-gray-300">Your next games will appear here.</p>
-        </div>
-        <div className="bg-gray-800 p-4 rounded-lg shadow-lg">
-          <h2 className="text-xl font-semibold mb-2">Team Chat</h2>
-          <p className="text-sm text-gray-300">Chat with your coach and teammates.</p>
-        </div>
-      </div>
-    </div>
+    </PlayerLayout>
   );
 }

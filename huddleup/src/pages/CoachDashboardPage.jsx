@@ -1,9 +1,9 @@
 // src/pages/CoachDashboardPage.jsx
 import { useEffect, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
-import pb from '../services/pocketbaseService';
-import { useNavigate } from 'react-router-dom';
-import Layout from '../components/Layout';
+import { useAuth }            from '../context/AuthContext';
+import pb                     from '../services/pocketbaseService';
+import { useNavigate }        from 'react-router-dom';
+import Layout                 from '../components/Layout';
 import {
   Users,
   Calendar,
@@ -15,59 +15,83 @@ import {
 } from 'lucide-react';
 
 export default function CoachDashboardPage() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [team, setTeam] = useState(null);
-  const [stats, setStats] = useState({
-    totalPlayers: 0,
+  const [team,       setTeam]           = useState(null);
+  const [players,    setPlayers]        = useState([]);
+  const [stats,      setStats]          = useState({
+    totalPlayers:    0,
     upcomingMatches: 0,
-    newMessages: 0,
-    notifications: 0,
+    newMessages:     0,
+    notifications:   0,
   });
   const [upcomingMatches, setUpcomingMatches] = useState([]);
-  const [copied, setCopied] = useState(false);
+  const [copied,     setCopied]         = useState(false);
 
+  // 1) Load team record & initial upcoming matches
   useEffect(() => {
-    async function loadDashboard() {
+    async function loadTeamAndMatches() {
       try {
-        // 1) get the coach's team
+        // a) fetch your team
         const t = await pb
           .collection('teams')
           .getFirstListItem(`coach="${user.id}"`);
         setTeam(t);
 
-        // 2) basic stats
-        setStats((s) => ({
-          ...s,
-          totalPlayers: t.players?.length || 0,
-        }));
-
-        // 3) fetch upcoming matches (>= now)
+        // b) fetch your next 3 upcoming matches
         const now = new Date().toISOString();
         const matches = await pb
           .collection('matches')
           .getFullList({
             filter: `team="${t.id}" && date_time >= "${now}"`,
-            sort: 'date_time',
-            limit: 3,
+            sort:   'date_time',
+            limit:  3,
           });
-
         setUpcomingMatches(matches);
-        setStats((s) => ({
-          ...s,
-          upcomingMatches: matches.length,
-        }));
 
-        // (you can fetch newMessages & notifications similarly)
+        // c) update the stat for upcoming matches
+        setStats(s => ({ ...s, upcomingMatches: matches.length }));
       } catch (err) {
         console.error('Dashboard load error:', err);
       }
     }
-
-    loadDashboard();
+    loadTeamAndMatches();
   }, [user.id]);
 
+  // 2) Load roster & subscribe to live updates (for Total Players)
+  useEffect(() => {
+    if (!team?.id) return;
+
+    // helper to fetch current roster
+    async function fetchRoster() {
+      const list = await pb
+        .collection('users')
+        .getFullList({
+          filter: `team = "${team.id}"`,
+          sort:   'name',
+        });
+      // exclude the coach themselves:
+      const roster = list.filter(u => u.id !== user.id);
+      setPlayers(roster);
+      setStats(s => ({ ...s, totalPlayers: roster.length }));
+    }
+
+    fetchRoster();
+
+    const sub = pb
+      .collection('users')
+      .subscribe(`team = "${team.id}"`, () => {
+        fetchRoster();
+      });
+
+    return () => {
+      if (typeof sub === 'function') sub();
+      else if (sub.unsubscribe) sub.unsubscribe();
+    };
+  }, [team, user.id]);
+
+  // 3) copy code helper
   const copyTeamCode = () => {
     if (!team?.team_code) return;
     navigator.clipboard.writeText(team.team_code);
@@ -79,7 +103,7 @@ export default function CoachDashboardPage() {
     <Layout>
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <h1 className="text-3xl font-bold text-white">Dashboard</h1>
       </div>
 
       {/* Team Code Card */}
@@ -90,7 +114,7 @@ export default function CoachDashboardPage() {
               <Trophy className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold">{team.team_name}</h2>
+              <h2 className="text-xl font-semibold text-white">{team.team_name}</h2>
               <div className="mt-1 flex items-center space-x-2 bg-gray-800/50 px-3 py-2 rounded-lg border border-gray-600">
                 <code className="text-purple-400 font-mono text-lg tracking-wider">
                   {team.team_code}
@@ -102,8 +126,8 @@ export default function CoachDashboardPage() {
           <button
             onClick={copyTeamCode}
             className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${copied
-                ? 'bg-green-600 text-white'
-                : 'bg-purple-600 hover:bg-purple-700 text-white hover:scale-105'
+              ? 'bg-green-600 text-white'
+              : 'bg-purple-600 hover:bg-purple-700 text-white hover:scale-105'
               }`}
           >
             {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
@@ -114,32 +138,51 @@ export default function CoachDashboardPage() {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard label="Total Players" value={stats.totalPlayers} icon={<Users className="w-6 h-6 text-purple-500" />} bar={stats.totalPlayers ? 1 : 0} />
-        <StatCard label="Upcoming Matches" value={stats.upcomingMatches} icon={<Calendar className="w-6 h-6 text-blue-500" />} bar={stats.upcomingMatches ? 0.7 : 0} />
-        <StatCard label="New Messages" value={stats.newMessages} icon={<MessageSquare className="w-6 h-6 text-orange-500" />} bar={stats.newMessages ? 0.5 : 0} />
-        <StatCard label="Notifications" value={stats.notifications} icon={<Bell className="w-6 h-6 text-red-500" />} bar={stats.notifications ? 0.3 : 0} />
+        <StatCard
+          label="Total Players"
+          value={stats.totalPlayers}
+          icon={<Users className="w-6 h-6 text-purple-500" />}
+          progress={stats.totalPlayers / Math.max(stats.totalPlayers, 10)}
+        />
+        <StatCard
+          label="Upcoming Matches"
+          value={stats.upcomingMatches}
+          icon={<Calendar className="w-6 h-6 text-blue-500" />}
+          progress={stats.upcomingMatches / 3}
+        />
+        <StatCard
+          label="New Messages"
+          value={stats.newMessages}
+          icon={<MessageSquare className="w-6 h-6 text-orange-500" />}
+          progress={stats.newMessages / 10}
+        />
+        <StatCard
+          label="Notifications"
+          value={stats.notifications}
+          icon={<Bell className="w-6 h-6 text-red-500" />}
+          progress={stats.notifications / 10}
+        />
       </div>
 
-      {/* Upcoming Matches Section */}
+      {/* Upcoming Matches */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-white">Upcoming Matches</h2>
           <button
             onClick={() => navigate('/matches')}
-            className="text-sm text-white-400 bg-purple-600 hover:bg-purple-700 px-3 py-1 rounded-lg"
+            className="text-sm text-gray-300 bg-purple-600 hover:bg-purple-700 px-3 py-1 rounded-lg"
           >
             View All
           </button>
         </div>
-
         <div className="space-y-4">
           {upcomingMatches.length === 0 ? (
-            <p className="text-gray-400 col-span-full">No upcoming matches.</p>
+            <p className="text-gray-400">No upcoming matches.</p>
           ) : (
-            upcomingMatches.map((m) => (
+            upcomingMatches.map(m => (
               <div
                 key={m.id}
-                className="bg-gray-800 p-4 rounded-lg border border-gray-700 flex flex-col space-y-2"
+                className="bg-gray-800 p-4 rounded-lg border border-gray-700"
               >
                 <p className="text-lg font-medium text-white">vs {m.opponent}</p>
                 <p className="text-gray-400 text-sm">
@@ -164,8 +207,8 @@ export default function CoachDashboardPage() {
   );
 }
 
-// small helper components
-function StatCard({ label, value, icon, bar }) {
+// small helper component for stats
+function StatCard({ label, value, icon, progress }) {
   return (
     <div className="bg-gray-800 p-6 rounded-lg border border-gray-700">
       <div className="flex items-center justify-between mb-4">
@@ -176,9 +219,14 @@ function StatCard({ label, value, icon, bar }) {
         {icon}
       </div>
       <div className="w-full bg-gray-700 rounded-full h-2 mb-2">
-        <div className="h-full bg-purple-500 rounded-full" style={{ width: `${bar * 100}%` }} />
+        <div
+          className="h-full bg-purple-500 rounded-full"
+          style={{ width: `${Math.min(progress * 100, 100)}%` }}
+        />
       </div>
-      <p className="text-gray-400 text-sm"> </p>
+      <p className="text-gray-400 text-sm">
+        {/* you can customize subtext here */}
+      </p>
     </div>
   );
 }

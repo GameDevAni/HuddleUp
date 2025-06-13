@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 
+
 // Pages
 import SetupPlayerPage from './pages/SetupPlayerPage';
 import LoginPage from "./components/auth/Login";
@@ -11,6 +12,9 @@ import PlayerDashboardPage from './pages/PlayerDashboardPage';
 import TeamPage from './pages/TeamPage';
 import MatchesPage from './pages/MatchesPage';
 import ChatPage from './pages/ChatPage';
+import PlayerMatchesPage from './pages/PlayerMatchesPage';
+import PlayerTeamPage from './pages/PlayerTeamPage';
+
 
 // Route protection
 import ProtectedRoute from './components/ProtectedRoute';
@@ -56,25 +60,25 @@ export const router = createBrowserRouter([
           { path: '/dashboard/coach', element: <CoachDashboardPage /> },
           { path: '/team', element: <TeamPage /> },
           { path: '/matches', element: <MatchesPage /> },
+          {path: '/chat', element: <ChatPage /> },
           // ...
         ],
       },
 
       // 🟦 Player-only route
+
       {
         element: <ProtectedRoute allowedRoles={['player']} />,
         children: [
+          { path: '/setup-player', element: <SetupPlayerPage /> },
           { path: '/dashboard/player', element: <PlayerDashboardPage /> },
-        ],
-      },
-
-      {
-        element: <ProtectedRoute allowedRoles={['coach', 'player']} />,
-        children: [
-          // … other routes …
-          { path: '/chat', element: <ChatPage /> },
+          { path: '/player/matches',     element: <PlayerMatchesPage /> },
+          { path: '/player/team',        element: <PlayerTeamPage /> },
         ],
       },
     ],
   },
 ]);
+
+// after you create your router:
+export default router;
