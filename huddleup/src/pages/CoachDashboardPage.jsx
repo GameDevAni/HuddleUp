@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import pb from '../services/pocketbaseService';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import {
   Users,
@@ -15,6 +16,7 @@ import {
 
 export default function CoachDashboardPage() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   const [team, setTeam] = useState(null);
   const [stats, setStats] = useState({
@@ -78,9 +80,6 @@ export default function CoachDashboardPage() {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Dashboard</h1>
-        <button onClick={logout} className="text-red-400 hover:underline">
-          Logout
-        </button>
       </div>
 
       {/* Team Code Card */}
@@ -102,11 +101,10 @@ export default function CoachDashboardPage() {
           </div>
           <button
             onClick={copyTeamCode}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
-              copied
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${copied
                 ? 'bg-green-600 text-white'
                 : 'bg-purple-600 hover:bg-purple-700 text-white hover:scale-105'
-            }`}
+              }`}
           >
             {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
             <span>{copied ? 'Copied!' : 'Copy Code'}</span>
@@ -122,27 +120,45 @@ export default function CoachDashboardPage() {
         <StatCard label="Notifications" value={stats.notifications} icon={<Bell className="w-6 h-6 text-red-500" />} bar={stats.notifications ? 0.3 : 0} />
       </div>
 
-      {/* Upcoming Matches */}
-      <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-8">
-        <h3 className="text-lg font-semibold mb-4">Upcoming Matches</h3>
-        {upcomingMatches.length === 0 ? (
-          <p className="text-gray-400">No upcoming matches.</p>
-        ) : (
-          <ul className="space-y-3">
-            {upcomingMatches.map((m) => (
-              <li key={m.id} className="flex justify-between items-center">
-                <div>
-                  <p className="text-white font-medium">{m.opponent}</p>
-                  <p className="text-gray-400 text-sm">
-                    {new Date(m.date_time).toLocaleDateString()} @{' '}
-                    {new Date(m.date_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </div>
-                <span className="text-gray-300 text-sm">{m.location}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+      {/* Upcoming Matches Section */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-white">Upcoming Matches</h2>
+          <button
+            onClick={() => navigate('/matches')}
+            className="text-purple-400 text-sm hover:underline"
+          >
+            View All
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {upcomingMatches.length === 0 ? (
+            <p className="text-gray-400 col-span-full">No upcoming matches.</p>
+          ) : (
+            upcomingMatches.map((m) => (
+              <div
+                key={m.id}
+                className="bg-gray-800 p-4 rounded-lg border border-gray-700 flex flex-col space-y-2"
+              >
+                <p className="text-lg font-medium text-white">vs {m.opponent}</p>
+                <p className="text-gray-400 text-sm">
+                  {new Date(m.date_time).toLocaleDateString(undefined, {
+                    month: 'short', day: 'numeric', year: 'numeric'
+                  })}{' '}
+                  @{' '}
+                  {new Date(m.date_time).toLocaleTimeString(undefined, {
+                    hour: '2-digit', minute: '2-digit'
+                  })}
+                </p>
+                <p className="flex items-center text-gray-400 text-sm space-x-1">
+                  <Calendar className="w-4 h-4" />
+                  <span>{m.location}</span>
+                </p>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </Layout>
   );

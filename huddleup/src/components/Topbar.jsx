@@ -13,7 +13,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 
 export default function Topbar() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
   return (
     <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
@@ -44,6 +44,7 @@ export default function Topbar() {
             </span>
           </div>
           <button
+            onClick={logout}
             className="p-2 text-gray-400 hover:text-white transition-colors"
           >
             <LogOut className="w-5 h-5" />

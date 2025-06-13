@@ -1,22 +1,23 @@
+// src/pages/MatchesPage.jsx
+
 import { useState, useEffect } from 'react';
+import { Plus, Calendar as CalendarIcon, Clock, MapPin } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
+import ScheduleMatchModal from '../components/ScheduleMatchModal';
+import EditMatchModal from '../components/EditMatchModal';
 import pb from '../services/pocketbaseService';
 
 export default function MatchesPage() {
   const { user } = useAuth();
-  const [team, setTeam] = useState(null);
-  const [matches, setMatches] = useState([]);
-  const [form, setForm] = useState({
-    opponent: '',
-    date_time: '',
-    location: '',
-    notes: '',
-  });
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
 
-  // 1) load coach’s team
+  const [team, setTeam]                   = useState(null);
+  const [matches, setMatches]             = useState([]);
+  const [isScheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [editingMatch, setEditingMatch]   = useState(null);
+  const [error, setError]                 = useState(null);
+
+  // 1) Load the coach’s team on mount
   useEffect(() => {
     pb.collection('teams')
       .getFirstListItem(`coach="${user.id}"`)
@@ -24,132 +25,137 @@ export default function MatchesPage() {
       .catch(console.error);
   }, [user.id]);
 
-  // 2) load upcoming matches once team is set
+  // 2) Whenever the team is loaded, fetch its upcoming matches
   useEffect(() => {
     if (!team) return;
-    pb.collection('matches')
-      .getFullList({
-        filter: `team="${team.id}" && date_time >= "${new Date().toISOString()}"`,
-        sort: 'date_time',
-      })
-      .then(setMatches)
-      .catch(console.error);
+    fetchMatches();
   }, [team]);
 
-  // 3) handle form submit
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-
+  // Helper to fetch and set matches
+  async function fetchMatches() {
     try {
-
-      // ① Convert to full ISO timestamp
-      const isoDate = new Date(form.date_time).toISOString();
-      console.log('🗓️ Creating match with date_time =', isoDate);
-
-      await pb.collection('matches').create({
-        team:      team.id,
-        opponent:  form.opponent,
-        date_time: isoDate,
-        location:  form.location,
-        notes:     form.notes,
-      });
-      // reload list
+      const nowIso = new Date().toISOString();
       const list = await pb.collection('matches').getFullList({
-        filter: `team="${team.id}" && date_time >= "${new Date().toISOString()}"`,
-        sort: 'date_time',
+        filter: `team="${team.id}" && date_time >= "${nowIso}"`,
+        sort:   'date_time',
       });
       setMatches(list);
-      // clear form
-      setForm({ opponent: '', date_time: '', location: '', notes: '' });
     } catch (err) {
-      console.error(err);
-      setError('Failed to schedule match.');
-    } finally {
-      setLoading(false);
+      console.error('Error fetching matches:', err);
+      setError('Could not load matches.');
     }
-  };
+  }
+
+  // Called by ScheduleMatchModal
+  async function handleSchedule({ opponent, date_time, location, notes }) {
+    if (!team) throw new Error('Team not loaded');
+    const iso = new Date(date_time).toISOString();
+    await pb.collection('matches').create({
+      team:      team.id,
+      opponent,
+      date_time: iso,
+      location,
+      notes,
+    });
+    await fetchMatches();
+  }
+
+  // Called by EditMatchModal to save edits
+  async function handleSave(id, data) {
+    await pb.collection('matches').update(id, data);
+    await fetchMatches();
+  }
+
+  // Called by EditMatchModal to cancel (delete) a match
+  async function handleCancel(id) {
+    await pb.collection('matches').delete(id);
+    await fetchMatches();
+  }
 
   return (
     <Layout>
-      <h1 className="text-3xl font-bold mb-6">Schedule a Match</h1>
-
-      <form 
-        onSubmit={handleSubmit} 
-        className="bg-gray-800 p-6 rounded-lg mb-8 space-y-4 border border-gray-700"
-      >
-        {error && <p className="text-red-500">{error}</p>}
-
-        <div>
-          <label className="block text-sm mb-1">Opponent</label>
-          <input
-            type="text"
-            value={form.opponent}
-            onChange={e => setForm(f => ({ ...f, opponent: e.target.value }))}
-            required
-            className="w-full p-2 rounded bg-gray-700 text-white"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm mb-1">Date & Time</label>
-          <input
-            type="datetime-local"
-            value={form.date_time}
-            onChange={e => setForm(f => ({ ...f, date_time: e.target.value }))}
-            required
-            className="w-full p-2 rounded bg-gray-700 text-white"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm mb-1">Location</label>
-          <input
-            type="text"
-            value={form.location}
-            onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-            required
-            className="w-full p-2 rounded bg-gray-700 text-white"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm mb-1">Notes (optional)</label>
-          <textarea
-            value={form.notes}
-            onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-            className="w-full p-2 rounded bg-gray-700 text-white"
-          />
-        </div>
-
-        <button 
-          type="submit" 
-          disabled={loading}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+      {/* Page header */}
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold text-white">Upcoming Matches</h1>
+        <button
+          onClick={() => setScheduleModalOpen(true)}
+          className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg"
         >
-          {loading ? 'Scheduling…' : 'Schedule Match'}
+          <Plus className="w-5 h-5" />
+          <span>Schedule a Match</span>
         </button>
-      </form>
+      </div>
 
-      <h2 className="text-2xl font-semibold mb-4">Upcoming Matches</h2>
+      {/* Schedule Match Modal */}
+      <ScheduleMatchModal
+        isOpen={isScheduleModalOpen}
+        onClose={() => setScheduleModalOpen(false)}
+        onSchedule={handleSchedule}
+      />
+
+      {/* Edit Match Modal */}
+      <EditMatchModal
+        isOpen={Boolean(editingMatch)}
+        match={editingMatch}
+        onClose={() => setEditingMatch(null)}
+        onSave={handleSave}
+        onCancelMatch={handleCancel}
+      />
+
+      {/* Error */}
+      {error && <p className="text-red-500 mb-4">{error}</p>}
+
+      {/* Matches List */}
       <div className="space-y-4">
-        {matches.map(m => (
-          <div 
-            key={m.id} 
-            className="bg-gray-800 p-4 rounded-lg border border-gray-700 flex justify-between items-center"
-          >
-            <div>
-              <p className="text-lg font-medium">{m.opponent}</p>
-              <p className="text-gray-400 text-sm">
-                {new Date(m.date_time).toLocaleString()} @ {m.location}
-              </p>
-              {m.notes && <p className="text-gray-300 text-sm mt-1">{m.notes}</p>}
+        {matches.length === 0 ? (
+          <p className="text-gray-400">No upcoming matches.</p>
+        ) : (
+          matches.map((m) => (
+            <div
+              key={m.id}
+              className="bg-gray-800 p-4 rounded-lg border border-gray-700 flex flex-col space-y-3"
+            >
+              {/* Top row: opponent + badge + edit button */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <p className="text-lg font-semibold text-white">vs {m.opponent}</p>
+                </div>
+                <button
+                  onClick={() => setEditingMatch(m)}
+                  className="text-sm text-white-400 bg-purple-600 hover:bg-purple-700 px-3 py-1 rounded-lg"
+                >
+                  Edit Details
+                </button>
+              </div>
+
+              {/* Date / Time / Location */}
+              <div className="flex items-center space-x-6 text-gray-400 text-sm">
+                <span className="flex items-center space-x-1">
+                  <CalendarIcon className="w-4 h-4" />
+                  <span>
+                    {new Date(m.date_time).toLocaleDateString(undefined, {
+                      month: 'short', day: 'numeric', year: 'numeric'
+                    })}
+                  </span>
+                </span>
+                <span className="flex items-center space-x-1">
+                  <Clock className="w-4 h-4" />
+                  <span>
+                    {new Date(m.date_time).toLocaleTimeString(undefined, {
+                      hour: 'numeric', minute: '2-digit'
+                    })}
+                  </span>
+                </span>
+                <span className="flex items-center space-x-1">
+                  <MapPin className="w-4 h-4" />
+                  <span>{m.location}</span>
+                </span>
+              </div>
+
+              {/* Notes, if any */}
+              {m.notes && <p className="text-gray-300 text-sm">{m.notes}</p>}
             </div>
-          </div>
-        ))}
-        {matches.length === 0 && (
-          <p className="text-gray-400">No upcoming matches scheduled.</p>
+          ))
         )}
       </div>
     </Layout>

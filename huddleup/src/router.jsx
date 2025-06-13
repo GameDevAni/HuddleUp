@@ -10,6 +10,7 @@ import CoachDashboardPage from './pages/CoachDashboardPage';
 import PlayerDashboardPage from './pages/PlayerDashboardPage';
 import TeamPage from './pages/TeamPage';
 import MatchesPage from './pages/MatchesPage';
+import ChatPage from './pages/ChatPage';
 
 // Route protection
 import ProtectedRoute from './components/ProtectedRoute';
@@ -64,6 +65,14 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute allowedRoles={['player']} />,
         children: [
           { path: '/dashboard/player', element: <PlayerDashboardPage /> },
+        ],
+      },
+
+      {
+        element: <ProtectedRoute allowedRoles={['coach', 'player']} />,
+        children: [
+          // … other routes …
+          { path: '/chat', element: <ChatPage /> },
         ],
       },
     ],
