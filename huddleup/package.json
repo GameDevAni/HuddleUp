@@ -4,13 +4,20 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
+    "dev": "concurrently \"node server.js\" \"vite\"",
+    "start:api": "node server.js",
+    "start:app": "vite"
   },
+  
   "dependencies": {
+    "@sendgrid/mail": "^8.1.5",
+    "concurrently": "^9.1.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
     "lucide-react": "^0.514.0",
+    "mailgun-js": "^0.22.0",
+    "node-mailjet": "^6.0.8",
     "pocketbase": "^0.26.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

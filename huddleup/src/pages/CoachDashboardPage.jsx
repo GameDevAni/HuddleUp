@@ -1,22 +1,21 @@
 // src/pages/CoachDashboardPage.jsx
 import { useEffect, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 import pb from '../services/pocketbaseService';
 import Layout from '../components/Layout';
 import {
-  Home,
   Users,
   Calendar,
-  Trophy,
   MessageSquare,
-  LogOut,
   Bell,
-  ChevronLeft,
-  ChevronRight,
+  Trophy,
   Copy,
-  Check
+  Check,
 } from 'lucide-react';
 
 export default function CoachDashboardPage() {
+  const { user, logout } = useAuth();
+
   const [team, setTeam] = useState(null);
   const [stats, setStats] = useState({
     totalPlayers: 0,
@@ -24,167 +23,146 @@ export default function CoachDashboardPage() {
     newMessages: 0,
     notifications: 0,
   });
+  const [upcomingMatches, setUpcomingMatches] = useState([]);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    // fetch team and stats...
-    pb.collection('teams')
-      .getFirstListItem(`coach="${pb.authStore.model.id}"`)
-      .then(t => {
+    async function loadDashboard() {
+      try {
+        // 1) get the coach's team
+        const t = await pb
+          .collection('teams')
+          .getFirstListItem(`coach="${user.id}"`);
         setTeam(t);
-        // stub stats until real data:
-        setStats({
-          totalPlayers: t.players.length,
-          upcomingMatches: 3,
-          newMessages: 8,
-          notifications: 5,
-        });
-      })
-      .catch(console.error);
-  }, []);
 
-  const copyTeamCode = async () => {
-    if (!team?.team_code) return;
+        // 2) basic stats
+        setStats((s) => ({
+          ...s,
+          totalPlayers: t.players?.length || 0,
+        }));
 
-    try {
-      await navigator.clipboard.writeText(team.team_code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy team code:', err);
+        // 3) fetch upcoming matches (>= now)
+        const now = new Date().toISOString();
+        const matches = await pb
+          .collection('matches')
+          .getFullList({
+            filter: `team="${t.id}" && date_time >= "${now}"`,
+            sort: 'date_time',
+            limit: 3,
+          });
+
+        setUpcomingMatches(matches);
+        setStats((s) => ({
+          ...s,
+          upcomingMatches: matches.length,
+        }));
+
+        // (you can fetch newMessages & notifications similarly)
+      } catch (err) {
+        console.error('Dashboard load error:', err);
+      }
     }
+
+    loadDashboard();
+  }, [user.id]);
+
+  const copyTeamCode = () => {
+    if (!team?.team_code) return;
+    navigator.clipboard.writeText(team.team_code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <Layout>
-      <>
-        {/* Header */}
-        <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <button onClick={logout} className="text-red-400 hover:underline">
+          Logout
+        </button>
+      </div>
 
-        {/* Team Code Card */}
-        {team && (
-          <div className="mb-8">
-            <div className="bg-gradient-to-r from-purple-600/20 to-blue-600/20 border border-purple-500/30 rounded-xl p-6 backdrop-blur-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className="p-3 bg-purple-600 rounded-lg">
-                    <Trophy className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-white mb-1">
-                      {team.team_name}
-                    </h3>
-                    <div className="flex items-center space-x-3">
-                      <span className="text-gray-300 text-sm">Team Code:</span>
-                      <div className="flex items-center space-x-2 bg-gray-800/50 px-3 py-2 rounded-lg border border-gray-600">
-                        <code className="text-purple-400 font-mono text-lg font-bold tracking-wider">
-                          {team.team_code}
-                        </code>
-                        <span className="text-lg">📋</span>
-                      </div>
-                    </div>
-                  </div>
+      {/* Team Code Card */}
+      {team && (
+        <div className="mb-8 bg-gray-800 p-6 rounded-lg border border-gray-700 flex flex-col md:flex-row justify-between items-start md:items-center">
+          <div className="flex items-center space-x-4 mb-4 md:mb-0">
+            <div className="p-3 bg-purple-600 rounded-lg">
+              <Trophy className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold">{team.team_name}</h2>
+              <div className="mt-1 flex items-center space-x-2 bg-gray-800/50 px-3 py-2 rounded-lg border border-gray-600">
+                <code className="text-purple-400 font-mono text-lg tracking-wider">
+                  {team.team_code}
+                </code>
+                <span className="text-lg">📋</span>
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={copyTeamCode}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
+              copied
+                ? 'bg-green-600 text-white'
+                : 'bg-purple-600 hover:bg-purple-700 text-white hover:scale-105'
+            }`}
+          >
+            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            <span>{copied ? 'Copied!' : 'Copy Code'}</span>
+          </button>
+        </div>
+      )}
+
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <StatCard label="Total Players" value={stats.totalPlayers} icon={<Users className="w-6 h-6 text-purple-500" />} bar={stats.totalPlayers ? 1 : 0} />
+        <StatCard label="Upcoming Matches" value={stats.upcomingMatches} icon={<Calendar className="w-6 h-6 text-blue-500" />} bar={stats.upcomingMatches ? 0.7 : 0} />
+        <StatCard label="New Messages" value={stats.newMessages} icon={<MessageSquare className="w-6 h-6 text-orange-500" />} bar={stats.newMessages ? 0.5 : 0} />
+        <StatCard label="Notifications" value={stats.notifications} icon={<Bell className="w-6 h-6 text-red-500" />} bar={stats.notifications ? 0.3 : 0} />
+      </div>
+
+      {/* Upcoming Matches */}
+      <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-8">
+        <h3 className="text-lg font-semibold mb-4">Upcoming Matches</h3>
+        {upcomingMatches.length === 0 ? (
+          <p className="text-gray-400">No upcoming matches.</p>
+        ) : (
+          <ul className="space-y-3">
+            {upcomingMatches.map((m) => (
+              <li key={m.id} className="flex justify-between items-center">
+                <div>
+                  <p className="text-white font-medium">{m.opponent}</p>
+                  <p className="text-gray-400 text-sm">
+                    {new Date(m.date_time).toLocaleDateString()} @{' '}
+                    {new Date(m.date_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
                 </div>
-                {/* Copy Button */}
-                <button
-                  onClick={copyTeamCode}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${copied
-                      ? 'bg-green-600 text-white'
-                      : 'bg-purple-600 hover:bg-purple-700 text-white hover:scale-105'
-                    }`}
-                >
-                  {copied ? (
-                    <>
-                      <Check className="w-4 h-4" />
-                      <span className="font-medium">Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-4 h-4" />
-                      <span className="font-medium">Copy Code</span>
-                    </>
-                  )}
-                </button>
-              </div>
-              <div className="mt-4 pt-4 border-t border-gray-600/50">
-                <p className="text-gray-400 text-sm">
-                  Share this code with players to join your team. Keep it secure and only share with trusted members.
-                </p>
-              </div>
-            </div>
-          </div>
+                <span className="text-gray-300 text-sm">{m.location}</span>
+              </li>
+            ))}
+          </ul>
         )}
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-gray-800 p-6 rounded-lg border border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-gray-400 text-sm">Total Players</p>
-                <p className="text-3xl font-bold text-white">16</p>
-              </div>
-              <Users className="w-8 h-8 text-purple-500" />
-            </div>
-            <div className="w-full bg-gray-700 rounded-full h-2">
-              <div className="bg-purple-500 h-2 rounded-full" style={{ width: '80%' }}></div>
-            </div>
-            <p className="text-gray-400 text-sm mt-2">80% attendance this month</p>
-          </div>
-
-          <div className="bg-gray-800 p-6 rounded-lg border border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-gray-400 text-sm">Upcoming Matches</p>
-                <p className="text-3xl font-bold text-white">3</p>
-              </div>
-              <Calendar className="w-8 h-8 text-blue-500" />
-            </div>
-            <div className="w-full bg-gray-700 rounded-full h-2">
-              <div className="bg-blue-500 h-2 rounded-full" style={{ width: '60%' }}></div>
-            </div>
-            <p className="text-gray-400 text-sm mt-2">60% player confirmations</p>
-          </div>
-
-          <div className="bg-gray-800 p-6 rounded-lg border border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-gray-400 text-sm">New Messages</p>
-                <p className="text-3xl font-bold text-white">8</p>
-              </div>
-              <MessageSquare className="w-8 h-8 text-orange-500" />
-            </div>
-            <div className="w-full bg-gray-700 rounded-full h-2">
-              <div className="bg-orange-500 h-2 rounded-full" style={{ width: '100%' }}></div>
-            </div>
-            <p className="text-gray-400 text-sm mt-2">All read in last 24h</p>
-          </div>
-
-          <div className="bg-gray-800 p-6 rounded-lg border border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-gray-400 text-sm">Notifications</p>
-                <p className="text-3xl font-bold text-white">5</p>
-              </div>
-              <Bell className="w-8 h-8 text-red-500" />
-            </div>
-            <div className="w-full bg-gray-700 rounded-full h-2">
-              <div className="bg-red-500 h-2 rounded-full" style={{ width: '40%' }}></div>
-            </div>
-            <p className="text-gray-400 text-sm mt-2">40% require action</p>
-          </div>
-        </div>
-
-        {/* Placeholder Sections */}
-        <div className="flex space-x-1 mb-6">
-          <button className="px-6 py-3 bg-gray-800 text-white rounded-lg border border-gray-600 font-medium">
-            Upcoming Matches
-          </button>
-          <button className="px-6 py-3 text-gray-400 hover:text-white transition-colors">
-            Recent Activity
-          </button>
-        </div>
-      </>
+      </div>
     </Layout>
   );
 }
 
+// small helper components
+function StatCard({ label, value, icon, bar }) {
+  return (
+    <div className="bg-gray-800 p-6 rounded-lg border border-gray-700">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <p className="text-gray-400 text-sm">{label}</p>
+          <p className="text-3xl font-bold text-white">{value}</p>
+        </div>
+        {icon}
+      </div>
+      <div className="w-full bg-gray-700 rounded-full h-2 mb-2">
+        <div className="h-full bg-purple-500 rounded-full" style={{ width: `${bar * 100}%` }} />
+      </div>
+      <p className="text-gray-400 text-sm"> </p>
+    </div>
+  );
+}
