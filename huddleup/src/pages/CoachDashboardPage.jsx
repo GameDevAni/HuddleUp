@@ -126,7 +126,7 @@ export default function CoachDashboardPage() {
           <h2 className="text-xl font-semibold text-white">Upcoming Matches</h2>
           <button
             onClick={() => navigate('/matches')}
-            className="text-purple-400 text-sm hover:underline"
+            className="text-sm text-white-400 bg-purple-600 hover:bg-purple-700 px-3 py-1 rounded-lg"
           >
             View All
           </button>

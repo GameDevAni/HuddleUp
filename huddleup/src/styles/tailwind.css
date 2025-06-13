@@ -2,14 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Any custom global styles you need: */
-html {
-  @apply bg-gray-900 text-white;
+/* center on screen */
+.page-center {
+  @apply flex items-center justify-center min-h-screen bg-gray-900;
 }
 
-input,
-button,
-select,
-textarea {
-  @apply focus:outline-none;
+/* card styling */
+.auth-card {
+  @apply bg-gray-800 bg-opacity-80 backdrop-blur-md p-8 rounded-2xl shadow-lg w-full max-w-md;
+}
+
+/* input styling */
+.auth-input {
+  @apply w-full p-3 mb-4 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 transition;
+}
+
+/* button styling */
+.auth-btn {
+  @apply w-full py-3 rounded-lg text-white font-semibold transition transform hover:scale-105;
 }
