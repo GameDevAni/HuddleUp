@@ -4,8 +4,11 @@ import { Bell, MessageSquare, Settings, LogOut, Trophy } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import EditProfileModal from './EditProfileModal';
+import SetStatusModal from './SetStatusModal';
 
 export default function PlayerTopbar() {
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const { refreshUser } = useAuth();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -69,13 +72,10 @@ export default function PlayerTopbar() {
                 </button>
 
                 <button
-                  onClick={() => {
-                    /* future status logic */
-                    setMenuOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-2 hover:bg-gray-700"
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-700"
+                  onClick={() => setShowStatusModal(true)}
                 >
-                  Set your status
+                  Set Your Status
                 </button>
 
                 <div className="border-t border-gray-700" />
@@ -96,6 +96,12 @@ export default function PlayerTopbar() {
       <EditProfileModal
         open={editModalOpen}
         onClose={() => setEditOpen(false)}
+      />
+      <SetStatusModal
+        open={showStatusModal}
+        onClose={() => setShowStatusModal(false)}
+        currentStatus={user.status}
+        onStatusChange={(newStatus) => refreshUser && refreshUser()} // or update your local state
       />
     </>
   );

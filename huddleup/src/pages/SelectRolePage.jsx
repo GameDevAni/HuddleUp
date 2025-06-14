@@ -21,7 +21,7 @@ export default function SelectRolePage() {
 
       // ✅ Refresh local user object
       await pb.collection('users').authRefresh(); // or fetch user again
-      const updatedUser = pb.authStore.model;
+      const updatedUser = pb.authStore.record;
 
       // ✅ Redirect based on updated role
       if (updatedUser.role === 'coach') {
